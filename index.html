@@ -3,38 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <title>Soil Data</title>
-    <style>
-        table {
-            width: 50%;
-            border-collapse: collapse;
+    <script>
+        function fetchSensorData() {
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.data.length > 0) {
+                        document.getElementById('raw_data').textContent = data.data[0].raw_data;
+                        document.getElementById('voltage').textContent = data.data[0].voltage;
+                    }
+                })
+                .catch(error => console.error('Error fetching sensor data:', error));
         }
-        table, th, td {
-            border: 1px solid black;
-        }
-        th, td {
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-    </style>
+
+        setInterval(fetchSensorData, 5000); // Fetch data every 5 seconds
+    </script>
 </head>
-<body>
-    <h1>Soil Data</h1>
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Raw Data</th>
-            <th>Voltage</th>
-        </tr>
-        {% for row in data %}
-        <tr>
-            <td>{{ row[0] }}</td>
-            <td>{{ row[1] }}</td>
-            <td>{{ row[2] }}</td>
-        </tr>
-        {% endfor %}
-    </table>
+<body onload="fetchSensorData()">
+    <h1>Latest Soil Data</h1>
+    <p><strong>Raw Data:</strong> <span id="raw_data">{{ raw_value }}</span></p>
+    <p><strong>Voltage:</strong> <span id="voltage">{{ voltage_value }}</span></p>
+    <form method="post" action="{{ url_for('control') }}">
+        <button type="submit" name="action" value="on">Turn Pump On</button>
+        <button type="submit" name="action" value="off">Turn Pump Off</button>
+    </form>
 </body>
 </html>
