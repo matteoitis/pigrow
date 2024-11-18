@@ -84,15 +84,20 @@ sensor_thread.start()
 @app.route('/')
 def index():
     try:
-        # Connect to the database and fetch the data
+        # Connect to the database and fetch the latest data
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, raw_data, voltage FROM soil ORDER BY id DESC")
-        data = cursor.fetchall()
+        cursor.execute("SELECT raw_data, voltage FROM soil ORDER BY id DESC LIMIT 1")
+        data = cursor.fetchone()
         cursor.close()
         conn.close()
 
-        return render_template('index.html', data=data)
+        if data:
+            raw_value, voltage_value = data
+        else:
+            raw_value, voltage_value = None, None
+
+        return render_template('index.html', raw_value=raw_value, voltage_value=voltage_value)
     except mysql.connector.Error as db_err:
         return f"Database Error: {db_err}"
     except Exception as e:
@@ -106,6 +111,22 @@ def control():
     elif action == 'off':
         GPIO.output(RELAY_PIN, GPIO.HIGH)
     return redirect(url_for('index'))
+
+@app.route('/data')
+def data():
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT raw_data, voltage FROM soil ORDER BY id DESC LIMIT 1")
+        data = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return {"data": data}
+    except mysql.connector.Error as db_err:
+        return {"error": f"Database Error: {db_err}"}, 500
+    except Exception as e:
+        return {"error": f"Error: {e}"}, 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
