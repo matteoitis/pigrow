@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 import mysql.connector
 import board
 import busio
@@ -35,14 +35,18 @@ GPIO.setup(RELAY_PIN, GPIO.OUT)
 GPIO.output(RELAY_PIN, GPIO.HIGH)
 
 # Threshold value for when to turn the pump on
-threshold_voltage = 1.0
+threshold_voltage = 1.5
+
+# Manual override flag
+manual_override = False
+
+# Current mode (auto or manual)
+current_mode = "auto"
 
 def read_sensor_data():
+    global manual_override, current_mode
     while True:
         try:
-            GPIO.output(RELAY_PIN, GPIO.HIGH)  # Ensure the pump is off at the beginning of the loop
-            time.sleep(1)  # Initial delay before reading the data
-
             raw_value = channel0.value
             voltage_value = channel0.voltage
             
@@ -59,14 +63,15 @@ def read_sensor_data():
 
             print(f"Raw Data: {raw_value}, Voltage: {voltage_value}")
             
-            # Check if the voltage is above the threshold to control the relay
-            if voltage_value > threshold_voltage:
-                GPIO.output(RELAY_PIN, GPIO.LOW)  # Turn the pump on
-                print("Pump ON - Soil moisture low")
-            else:
-                GPIO.output(RELAY_PIN, GPIO.HIGH)  # Ensure the pump is off
-                print("Pump OFF - Soil moisture sufficient")
-            
+            if not manual_override:
+                # Check if the voltage is above the threshold to control the relay
+                if voltage_value > threshold_voltage:
+                    GPIO.output(RELAY_PIN, GPIO.LOW)  # Turn the pump on
+                    print("Pump ON - Soil moisture low")
+                else:
+                    GPIO.output(RELAY_PIN, GPIO.HIGH)  # Ensure the pump is off
+                    print("Pump OFF - Soil moisture sufficient")
+                
             time.sleep(1)  # Additional delay before the next loop iteration
 
         except OSError as os_err:
@@ -86,18 +91,14 @@ def index():
     try:
         # Connect to the database and fetch the latest data
         conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT raw_data, voltage FROM soil ORDER BY id DESC LIMIT 1")
-        data = cursor.fetchone()
+        latest_data = cursor.fetchone()
+        
         cursor.close()
         conn.close()
 
-        if data:
-            raw_value, voltage_value = data
-        else:
-            raw_value, voltage_value = None, None
-
-        return render_template('index.html', raw_value=raw_value, voltage_value=voltage_value)
+        return render_template('index.html', latest_data=latest_data, threshold_voltage=threshold_voltage, current_mode=current_mode)
     except mysql.connector.Error as db_err:
         return f"Database Error: {db_err}"
     except Exception as e:
@@ -105,11 +106,25 @@ def index():
 
 @app.route('/control', methods=['POST'])
 def control():
+    global manual_override, current_mode
     action = request.form.get('action')
     if action == 'on':
+        manual_override = True
+        current_mode = "manual"
         GPIO.output(RELAY_PIN, GPIO.LOW)
     elif action == 'off':
+        manual_override = True
+        current_mode = "manual"
         GPIO.output(RELAY_PIN, GPIO.HIGH)
+    elif action == 'auto':
+        manual_override = False
+        current_mode = "auto"
+    return redirect(url_for('index'))
+
+@app.route('/set_threshold', methods=['POST'])
+def set_threshold():
+    global threshold_voltage
+    threshold_voltage = float(request.form.get('threshold'))
     return redirect(url_for('index'))
 
 @app.route('/data')
