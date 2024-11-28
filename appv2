@@ -1,0 +1,160 @@
+from flask import Flask, render_template, request, redirect, url_for, jsonify
+import sqlite3
+import board
+import busio
+import adafruit_ads1x15.ads1115 as ADS
+from adafruit_ads1x15.analog_in import AnalogIn
+import RPi.GPIO as GPIO
+import threading
+import time
+from datetime import datetime
+
+class Plant:
+    def __init__(self, conn, id, name, relay_pin, channel_pin, manual_override=False, current_mode="auto"):
+        self.id = id
+        self.name = name
+        self.relay_pin = relay_pin
+        self.status = "OFF"
+        self.manual_override = manual_override
+        self.current_mode = current_mode
+        self.conn = conn
+
+        self.channel = AnalogIn(ads, channel_pin)
+        GPIO.setup(self.relay_pin, GPIO.OUT)
+        GPIO.output(self.relay_pin, GPIO.HIGH)
+
+    def sensor_attached(self):
+        try:
+            _ = self.channel.value
+            return True
+        except Exception as e:
+            print(f"Sensor {self.id} error: {e}")
+            return False
+
+    def pump_attached(self):
+        try:
+            GPIO.output(self.relay_pin, GPIO.LOW)
+            time.sleep(0.1)
+            GPIO.output(self.relay_pin, GPIO.HIGH)
+            return True
+        except Exception as e:
+            print(f"Pump {self.id} error: {e}")
+            return False
+
+    def store_readings(self):
+        if not self.sensor_attached():
+            print(f"Sensor {self.id} is not attached.")
+            return
+        
+        if not self.pump_attached():
+            print(f"Pump {self.id} is not attached.")
+            return
+
+        try:
+            raw_value = self.channel.value
+            voltage_value = self.channel.voltage
+            timestamp = datetime.now()
+
+            cursor = self.conn.cursor()
+            cursor.execute("INSERT INTO soil (plant_id, raw_data, voltage, timestamp) VALUES (?, ?, ?, ?)", (self.id, raw_value, voltage_value, timestamp))
+            self.conn.commit()
+            cursor.close()
+
+            print(f"Plant {self.id} - Raw Data: {raw_value}, Voltage: {voltage_value}, Timestamp: {timestamp}")
+
+            if self.current_mode == "auto" and not self.manual_override:
+                if voltage_value > threshold_voltage:
+                    GPIO.output(self.relay_pin, GPIO.LOW)
+                    self.status = "ON"
+                    print(f"Pump {self.id} ON - Soil moisture low")
+                else:
+                    GPIO.output(self.relay_pin, GPIO.HIGH)
+                    self.status = "OFF"
+                    print(f"Pump {self.id} OFF - Soil moisture sufficient")
+
+        except OSError as os_err:
+            print(f"OS Error: {os_err}")
+        except sqlite3.Error as db_err:
+            print(f"Database Error: {db_err}")
+        except Exception as e:
+            print(f"Error: {e}")
+
+app = Flask(__name__)
+
+conn = sqlite3.connect('pigrow.db', check_same_thread=False)
+i2c = busio.I2C(board.SCL, board.SDA)
+ads = ADS.ADS1115(i2c)
+
+threshold_voltage = 1.5
+
+plant1 = Plant(conn=conn, id=1, name="Plant 1", relay_pin=26, channel_pin=ADS.P0)
+
+plants = [plant1]
+
+def read_sensor_data():
+    while True:
+        for plant in plants:
+            plant.store_readings()
+        time.sleep(5)
+
+sensor_thread = threading.Thread(target=read_sensor_data)
+sensor_thread.daemon = True
+sensor_thread.start()
+
+@app.route('/')
+def index():
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT plant_id, raw_data, voltage, timestamp FROM soil ORDER BY id DESC LIMIT 1")
+        latest_data = cursor.fetchall()
+        cursor.close()
+
+        relay_status = GPIO.input(plant1.relay_pin)
+        return render_template('page.html', latest_data=latest_data, threshold_voltage=threshold_voltage, current_mode=plant1.current_mode, relay_status=relay_status)
+    except sqlite3.Error as db_err:
+        return f"Database Error: {db_err}"
+    except Exception as e:
+        return f"Error: {e}"
+
+@app.route('/control', methods=['POST'])
+def control():
+    action = request.form.get('action')
+    plant_id = int(request.form.get('plant_id'))
+    plant = plants[plant_id - 1]
+    if action == 'on':
+        plant.manual_override = True
+        plant.current_mode = "manual"
+        GPIO.output(plant.relay_pin, GPIO.LOW)
+        plant.status = "ON"
+    elif action == 'off':
+        plant.manual_override = True
+        plant.current_mode = "manual"
+        GPIO.output(plant.relay_pin, GPIO.HIGH)
+        plant.status = "OFF"
+    elif action == 'auto':
+        plant.manual_override = False
+        plant.current_mode = "auto"
+    return redirect(url_for('index'))
+
+@app.route('/set_threshold', methods=['POST'])
+def set_threshold():
+    global threshold_voltage
+    threshold_voltage = float(request.form.get('threshold'))
+    return redirect(url_for('index'))
+
+@app.route('/data')
+def data():
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT plant_id, raw_data, voltage, timestamp FROM soil ORDER BY id DESC LIMIT 1")
+        data = cursor.fetchall()
+        cursor.close()
+
+        return {"data": data}
+    except sqlite3.Error as db_err:
+        return {"error": f"Database Error: {db_err}"}, 500
+    except Exception as e:
+        return {"error": f"Error: {e}"}, 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
