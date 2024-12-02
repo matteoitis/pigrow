@@ -17,7 +17,7 @@
                 .catch(error => console.error('Error fetching sensor data:', error));
         }
 
-        setInterval(fetchSensorData, 5000); // Fetch data every 5 seconds
+        setInterval(fetchSensorData, 500); // Fetch data every 0.5 seconds
 
         function updateSliderValue(val) {
             document.getElementById('sliderValue').innerText = val;
@@ -152,20 +152,19 @@
 <body onload="fetchSensorData()">
     <div class="container">
         <h1>Soil Data Dashboard</h1>
-        
+
         <!-- Status Indicator -->
-        <!-- Status Indicator -->
-<div class="status-indicator">
+       <div class="status-indicator">
     <p>Current Mode:</p>
-    <span 
+    <span
         class="
-            {{ 'status-auto' if current_mode == 'auto' else 
-            'status-manual-on' if current_mode == 'manual' and GPIO.input(RELAY_PIN) == GPIO.LOW else 
+            {{ 'status-auto' if current_mode == 'auto' else
+            'status-manual-on' if current_mode == 'manual' and relay_status == 0 else
             'status-manual-off' }}">
-        {{ 'Auto' if current_mode == 'auto' else 'Manual (Pump On)' if current_mode == 'manual' and GPIO.input(RELAY_PIN) == GPIO.LOW else 'Manual (Pump Off)' }}
+        {{ 'Auto' if current_mode == 'auto' else 'Manual (Pump On)' if current_mode == 'manual' and relay_status == 0 else 'Manual (Pump Off)' }}
     </span>
 </div>
-        
+
         <!-- Data Display -->
         <div class="data-display">
             <p class="data-item"><strong>Raw Data:</strong> <span id="raw_data">Loading...</span></p>
