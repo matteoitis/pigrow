@@ -3,192 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soil Data Dashboard</title>
+    <title>Multi-Sensor Dashboard</title>
     <script>
         function fetchSensorData() {
             fetch('/data')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.data.length > 0) {
-                        document.getElementById('raw_data').textContent = data.data[0].raw_data;
-                        document.getElementById('voltage').textContent = data.data[0].voltage;
-                    }
+                    data.forEach((sensor, index) => {
+                        document.getElementById(`raw_data_${index}`).textContent = sensor.raw_data || "N/A";
+                        document.getElementById(`voltage_${index}`).textContent = sensor.voltage || "N/A";
+                        document.getElementById(`mode_${index}`).textContent = sensor.current_mode || "N/A";
+                        document.getElementById(`threshold_${index}`).textContent = sensor.threshold_voltage || "N/A";
+                    });
                 })
-                .catch(error => console.error('Error fetching sensor data:', error));
+                .catch(error => console.error('Error fetching data:', error));
         }
 
-        setInterval(fetchSensorData, 500); // Fetch data every 0.5 seconds
-
-        function updateSliderValue(val) {
-            document.getElementById('sliderValue').innerText = val;
-        }
+        setInterval(fetchSensorData, 2000); // Refresh every 2 seconds
     </script>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f4f4f9;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        h1 {
-            color: #0077cc;
-            margin-bottom: 20px;
-        }
-
-        .container {
-            background: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            width: 90%;
-            max-width: 600px;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        .status-indicator span {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            color: white;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-
-        .status-auto {
-            background-color: #0077cc;
-        }
-
-        .status-manual-on {
-            background-color: #4caf50;
-        }
-
-        .status-manual-off {
-            background-color: #f44336;
-        }
-
-        .data-display {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
-
-        .data-item {
-            font-size: 1.2em;
-            margin: 10px 0;
-        }
-
-        form {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            font-size: 1em;
-            margin-bottom: 10px;
-            color: #555;
-        }
-
-        input[type="range"] {
-            width: 100%;
-        }
-
-        button {
-            display: inline-block;
-            padding: 10px 15px;
-            margin: 5px 0;
-            border: none;
-            border-radius: 5px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        .manual-mode-on {
-            background-color: #4caf50;
-            color: white;
-        }
-
-        .manual-mode-off {
-            background-color: #f44336;
-            color: white;
-        }
-
-        .auto-mode-button {
-            background-color: #0077cc;
-            color: white;
-        }
-
-        button:hover {
-            opacity: 0.9;
-        }
-
-        .space {
-            margin-top: 20px;
-        }
-
-        .slider-value {
-            font-weight: bold;
-            color: #0077cc;
-        }
-
-        footer {
-            margin-top: 20px;
-            font-size: 0.9em;
-            color: #aaa;
-        }
-    </style>
 </head>
-<body onload="fetchSensorData()">
-    <div class="container">
-        <h1>Soil Data Dashboard</h1>
-        
-        <!-- Status Indicator -->
-       <div class="status-indicator">
-    <p>Current Mode:</p>
-    <span 
-        class="
-            {{ 'status-auto' if current_mode == 'auto' else 
-            'status-manual-on' if current_mode == 'manual' and relay_status == 0 else 
-            'status-manual-off' }}">
-        {{ 'Auto' if current_mode == 'auto' else 'Manual (Pump On)' if current_mode == 'manual' and relay_status == 0 else 'Manual (Pump Off)' }}
-    </span>
-</div>
-        
-        <!-- Data Display -->
-        <div class="data-display">
-            <p class="data-item"><strong>Raw Data:</strong> <span id="raw_data">Loading...</span></p>
-            <p class="data-item"><strong>Voltage:</strong> <span id="voltage">Loading...</span></p>
-        </div>
+<body>
+    <h1>Multi-Sensor Dashboard</h1>
 
-        <!-- Controls -->
+    <button onclick="document.getElementById('restartSensorsForm').submit();">Restart Sensors</button>
+    <button onclick="document.getElementById('restartProgramForm').submit();">Restart Program</button>
+
+    <form id="restartSensorsForm" method="post" action="/restart_sensors" style="display:none;"></form>
+    <form id="restartProgramForm" method="post" action="/restart_program" style="display:none;"></form>
+
+    {% for sensor_id in range(4) %}
+    <div>
+        <h2>Sensor {{ sensor_id + 1 }}</h2>
+        <p>Raw Data: <span id="raw_data_{{ sensor_id }}">Loading...</span></p>
+        <p>Voltage: <span id="voltage_{{ sensor_id }}">Loading...</span></p>
+        <p>Mode: <span id="mode_{{ sensor_id }}">Loading...</span></p>
+        <p>Threshold: <span id="threshold_{{ sensor_id }}">Loading...</span></p>
         <form method="post" action="{{ url_for('control') }}">
-            <button type="submit" name="action" value="on" class="manual-mode-on">Turn Pump On</button>
-            <button type="submit" name="action" value="off" class="manual-mode-off">Turn Pump Off</button>
-            <button type="submit" name="action" value="auto" class="auto-mode-button">Auto Mode</button>
+            <input type="hidden" name="sensor_id" value="{{ sensor_id }}">
+            <button type="submit" name="action" value="on">Turn Pump On</button>
+            <button type="submit" name="action" value="off">Turn Pump Off</button>
+            <button type="submit" name="action" value="auto">Auto Mode</button>
         </form>
-
-        <!-- Threshold Slider -->
-        <div class="space"></div>
         <form method="post" action="{{ url_for('set_threshold') }}">
-            <label for="threshold">Set Threshold Voltage:</label>
-            <input type="range" id="threshold" name="threshold" min="0" max="5" step="0.1" value="{{ threshold_voltage }}" oninput="updateSliderValue(this.value)">
-            <span class="slider-value" id="sliderValue">{{ threshold_voltage }}</span>
-            <button type="submit" style="background-color: #0077cc; color: white;">Set Threshold</button>
+            <input type="hidden" name="sensor_id" value="{{ sensor_id }}">
+            <label>Threshold: <input type="number" step="0.1" name="threshold" value="{{ threshold_voltages[sensor_id] }}"></label>
+            <button type="submit">Set Threshold</button>
         </form>
     </div>
-    <footer>
-        <p>&copy; 2024 Soil Monitoring Dashboard</p>
-    </footer>
+    {% endfor %}
 </body>
 </html>
