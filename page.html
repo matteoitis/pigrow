@@ -12,8 +12,9 @@
                     data.forEach((sensor, index) => {
                         document.getElementById(`raw_data_${index}`).textContent = sensor.raw_data || "N/A";
                         document.getElementById(`voltage_${index}`).textContent = sensor.voltage || "N/A";
-                        document.getElementById(`mode_${index}`).textContent = sensor.current_mode || "N/A";
-                        document.getElementById(`threshold_${index}`).textContent = sensor.threshold_voltage || "N/A";
+                        document.getElementById(`mode_${index}`).textContent = sensor.mode || "N/A";
+                        document.getElementById(`threshold_${index}`).textContent = sensor.threshold || "N/A";
+                        document.getElementById(`sensor_name_${index}`).textContent = sensor.name || `Sensor ${index + 1}`;
                     });
                 })
                 .catch(error => console.error('Error fetching data:', error));
@@ -25,15 +26,9 @@
 <body>
     <h1>Multi-Sensor Dashboard</h1>
 
-    <button onclick="document.getElementById('restartSensorsForm').submit();">Restart Sensors</button>
-    <button onclick="document.getElementById('restartProgramForm').submit();">Restart Program</button>
-
-    <form id="restartSensorsForm" method="post" action="/restart_sensors" style="display:none;"></form>
-    <form id="restartProgramForm" method="post" action="/restart_program" style="display:none;"></form>
-
     {% for sensor_id in range(4) %}
     <div>
-        <h2>Sensor {{ sensor_id + 1 }}</h2>
+        <h2 id="sensor_name_{{ sensor_id }}">Sensor {{ sensor_id + 1 }}</h2>
         <p>Raw Data: <span id="raw_data_{{ sensor_id }}">Loading...</span></p>
         <p>Voltage: <span id="voltage_{{ sensor_id }}">Loading...</span></p>
         <p>Mode: <span id="mode_{{ sensor_id }}">Loading...</span></p>
