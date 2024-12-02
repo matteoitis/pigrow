@@ -61,7 +61,7 @@ class Sensor:
 
     def control_pump(self, voltage):
         if not self.manual_override and self.current_mode == "auto":
-            if voltage < self.threshold_voltage:
+            if voltage > self.threshold_voltage:  # Change condition to check if voltage is above the threshold
                 GPIO.output(self.pump_pin, GPIO.LOW)
                 logging.info(f"Sensor {self.sensor_id} ({self.name}) - Pump ON")
             else:
@@ -135,7 +135,13 @@ def data():
                 "SELECT raw_data, voltage FROM soil WHERE sensor_id = %s ORDER BY id DESC LIMIT 1",
                 (sensor.sensor_id,)
             )
-            data.append(cursor.fetchone() or {"raw_data": "N/A", "voltage": "N/A"})
+            sensor_data = cursor.fetchone() or {"raw_data": "N/A", "voltage": "N/A"}
+            sensor_data.update({
+                "mode": sensor.current_mode,
+                "threshold": sensor.threshold_voltage,
+                "name": sensor.name
+            })
+            data.append(sensor_data)
     return jsonify(data)
 
 if __name__ == '__main__':
