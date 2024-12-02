@@ -49,7 +49,7 @@ def read_sensor_data():
         try:
             raw_value = channel0.value
             voltage_value = channel0.voltage
-            
+
             # Save data into MariaDB immediately for real-time access
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor()
@@ -62,7 +62,7 @@ def read_sensor_data():
             conn.close()
 
             print(f"Raw Data: {raw_value}, Voltage: {voltage_value}")
-            
+
             if not manual_override:
                 # Check if the voltage is above the threshold to control the relay
                 if voltage_value > threshold_voltage:
@@ -71,7 +71,7 @@ def read_sensor_data():
                 else:
                     GPIO.output(RELAY_PIN, GPIO.HIGH)  # Ensure the pump is off
                     print("Pump OFF - Soil moisture sufficient")
-                
+
             time.sleep(1)  # Additional delay before the next loop iteration
 
         except OSError as os_err:
@@ -94,7 +94,7 @@ def index():
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT raw_data, voltage FROM soil ORDER BY id DESC LIMIT 1")
         latest_data = cursor.fetchone()
-        
+
         cursor.close()
         conn.close()
 
